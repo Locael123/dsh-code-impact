@@ -1,0 +1,44 @@
+{
+	"name": "code-intel",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Workspace symbol index: declarations, references, inheritance, and post-edit impact checks for the harness.",
+	"keywords": [
+		"dsh",
+		"dsh-plugin",
+		"deepseek-harness",
+		"cordis",
+		"code-intelligence",
+		"symbol-index",
+		"code-navigation",
+		"impact-analysis"
+	],
+	"main": "./index.js",
+	"exports": {
+		".": "./index.js",
+		"./icon": "./icon.svg"
+	},
+	"files": [
+		"index.js",
+		"lib/lex.js",
+		"lib/files.js",
+		"lib/lang-js.js",
+		"lib/lang-go.js",
+		"lib/store.js",
+		"lib/resolve.js",
+		"lib/query.js",
+		"lib/tools.js",
+		"locale/en.json",
+		"locale/zh.json",
+		"icon.svg",
+		"cordis.patch.yml",
+		"README.md",
+		"README.zh.md"
+	],
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		}
+	}
+}

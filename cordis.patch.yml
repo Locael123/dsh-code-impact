@@ -1,0 +1,5 @@
+- insert:
+    - id: code-intel
+      name: code-intel
+      config:
+        maxFiles: 20000

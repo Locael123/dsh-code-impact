@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# index cache — a plugin cache, never committed and never written into a repo
+.cache/
+*code-index*/
+
+# logs and scratch files
+*.log
+*.tmp
+tmp/
+scratch/
+
+# editors and OS
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+
+# build output
+dist/
+coverage/

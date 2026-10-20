@@ -1,0 +1,5 @@
+# keep LF in the repo on every platform — these are source files, not Windows text
+* text=auto eol=lf
+
+# binary-ish assets
+*.svg text
