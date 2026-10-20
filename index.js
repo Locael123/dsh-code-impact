@@ -10,10 +10,12 @@
 import os from 'node:os';
 import path from 'node:path';
 
+import { FeedService } from './lib/feed.js';
 import { hashShort, toPosix } from './lib/files.js';
 import { CodeQuery } from './lib/query.js';
 import { CodeIndex } from './lib/store.js';
 import { createTools } from './lib/tools.js';
+import { registerWebRoutes } from './lib/web.js';
 
 export const name = 'dsh-code-impact';
 export const inject = ['tools'];
@@ -39,6 +41,11 @@ export function apply(ctx, config = {}) {
 
 	/** @type {{ root: string|null, index: any, query: any, initError: string|null, initializing: Promise<void>|null }} */
 	const state = { root: null, index: null, query: null, initError: null, initializing: null };
+
+	// The Web UI page reads the same index the tools use, through HTTP routes.
+	// One feed per plugin instance, so an edit the tools already applied shows up
+	// in the page without a rebuild of its own.
+	const feed = new FeedService({ cacheRoot: path.join(dshHome(), 'cache', 'code-index'), log });
 
 	async function resolveRoot(exec) {
 		if (config.root) return path.resolve(String(config.root));
@@ -77,6 +84,7 @@ export function apply(ctx, config = {}) {
 			state.root = root;
 			state.index = index;
 			state.query = query;
+			feed.indexes.set(path.resolve(root), index);
 			log(`index ready at ${root} (${index.symbolCount} symbols, ${index.fileCount} files)`);
 		})();
 		try {
@@ -115,5 +123,31 @@ export function apply(ctx, config = {}) {
 		}
 	} catch (error) {
 		log(`systemPrompt unavailable: ${error?.message ?? error}`);
+	}
+
+	// The page asks for "the workspace" with no argument, so the plugin needs a
+	// default even before the first tool call: the session root if we have one,
+	// else the profile's default directory, else wherever the host was launched.
+	async function defaultRoot() {
+		if (state.root) return state.root;
+		if (config.root) return path.resolve(String(config.root));
+		try {
+			const wd = ctx.get('workingDirectory');
+			const declared = wd?.defaultDirectory;
+			if (typeof declared === 'string' && declared.length > 0) return path.resolve(declared);
+		} catch (error) {
+			log(`workingDirectory unavailable: ${error?.message ?? error}`);
+		}
+		return path.resolve(process.cwd());
+	}
+
+	try {
+		const dispose = registerWebRoutes(ctx, { feed, defaultRoot, log });
+		if (dispose) {
+			ctx.effect(() => dispose);
+			log('web routes registered at /code-impact/api/');
+		}
+	} catch (error) {
+		log(`web routes unavailable: ${error?.message ?? error}`);
 	}
 }

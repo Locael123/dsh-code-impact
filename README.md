@@ -25,7 +25,8 @@ An index inverts that:
 
 ## What you get
 
-Two tools, registered into every agent session.
+Two tools, registered into every agent session — plus a browsable page of the same index
+(**Settings → Code Impact**).
 
 ### `code_query`
 
@@ -98,6 +99,34 @@ whole class into the report.
 `code_verify` is **incremental**: it reports changes since the index last synced. Ask twice without
 editing in between and the second answer is `clean`. That's the intended loop — one question after
 each edit, and the answer is about what you just did.
+
+## The index page
+
+The same index is browsable: **Settings → Code Impact**. Three views over the workspace, drawn from
+the index rather than from a fresh scan:
+
+| view | what it answers |
+| --- | --- |
+| Architecture | a treemap of directories weighted by symbol count, coloured by language — where the code actually lives |
+| Imports | the file-level import graph as a chord diagram; hover a file to isolate its edges |
+| Inheritance | the type hierarchy by depth, `implements` drawn dashed |
+
+Clicking a file lists its symbols with kind, signature and line; clicking a type shows its
+supertypes, subtypes and the file that declares it. The header carries the honesty chips —
+files / symbols / names / languages, when the index was built, and a warning when files were
+skipped — plus a `Refresh` button that re-checks the disk before redrawing.
+
+It is a client half of the bundle (`client.js`, React, theme tokens only — no iframe, no inline
+HTML), talking to the host through three read-only JSON routes:
+
+```
+GET /code-impact/api/roots
+GET /code-impact/api/overview?root=<abs path>&refresh=1
+GET /code-impact/api/file?root=<abs path>&path=<repo-relative path>
+```
+
+Roots are allow-listed: the page can only read a directory that is already indexed, or the
+session's working directory. Nothing here writes.
 
 ## Install
 
@@ -186,15 +215,18 @@ warm start from manifest 3 ms for a 5-file fixture.
 ## Development
 
 ```bash
-node test/selftest.mjs
+node test/selftest.mjs               # index + tools, 36 assertions
+node test/webcheck.mjs <repo>        # the JSON routes the page calls
+node test/clientsmoke.mjs            # client half registers its settings section
 ```
 
 The self-test copies `test/fixture` — a deliberately small TS + Go project with a `tsconfig` path
 alias, a class hierarchy, and a two-package Go module — into a temp directory, builds a real index,
-and runs 32 assertions: body-only edits are not reported as contract changes, a renamed export
-surfaces its dangling references, new files are picked up, deleted files are reported, Go
-cross-package references resolve `exact`, warm start reloads from the manifest, and a file that
-mentions `constructor` still parses.
+and runs 36 assertions: body-only edits are not reported as contract changes, a renamed export
+surfaces its dangling references, a renamed directory does not, new files are picked up, deleted
+files are reported, Go cross-package references resolve `exact`, warm start reloads from the
+manifest, and a file that mentions `constructor` still parses (that one was a real bug: a plain
+object used as a delimiter stack hit `Object.prototype.constructor`).
 
 ## License
 

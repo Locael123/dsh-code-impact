@@ -22,6 +22,8 @@
 
 ## 两个工具
 
+两个工具注册进每个 agent 会话；同一份索引还提供了一个可视化页面（**设置 → 代码影响分析**）。
+
 ### `code_query`
 
 | op | 用途 |
@@ -88,6 +90,32 @@ references that no longer resolve:
 
 `code_verify` 是**增量**的：它报的是"自索引上次同步以来"的变化，所以连续调两次而中间
 没有编辑，第二次就是 `clean`。要的就是这个语义——每次编辑后问一次，答案就是你刚做的事。
+
+## 索引页（可视化）
+
+同一份索引可以直接看：**设置 → 代码影响分析（Code Impact）**。三个视图，数据全部来自索引，
+不会重新扫描仓库：
+
+| 视图 | 回答什么 |
+| --- | --- |
+| 架构图 | 按符号数加权的目录 treemap，按语言着色——代码实际堆在哪里 |
+| 依赖图 | 文件级 import 关系的弦图，悬停某个文件会高亮它的边 |
+| 继承图 | 按继承深度分层的类型 DAG，`implements` 用虚线 |
+
+点文件列出它的符号（kind、签名、行号）；点类型显示它的父类型、子类型和声明文件。顶部一排
+"诚实标签"：文件数 / 符号数 / 名字数 / 语言分布 / 索引构建时间 / 有文件被跳过时的警告，外加一个
+`刷新` 按钮——刷新会先核对磁盘再重画。
+
+它是 bundle 的客户端半（`client.js`，React，只用主题 token——没有 iframe、不拼 HTML），通过
+三条只读 JSON 路由和宿主通信：
+
+```
+GET /code-impact/api/roots
+GET /code-impact/api/overview?root=<绝对路径>&refresh=1
+GET /code-impact/api/file?root=<绝对路径>&path=<仓库相对路径>
+```
+
+根目录是白名单：页面只能读已建索引的目录，或当前会话的工作目录。这里没有任何写操作。
 
 ## 安装与配置
 
@@ -169,13 +197,16 @@ warm start 3 ms。
 ## 开发
 
 ```bash
-node test/selftest.mjs
+node test/selftest.mjs               # 索引 + 工具，36 条断言
+node test/webcheck.mjs <仓库路径>     # 页面调的那三条 JSON 路由
+node test/clientsmoke.mjs            # 客户端半能正确注册设置页
 ```
 
 自测在系统临时目录里复制 `test/fixture`（一个刻意造的小 TS + Go 工程，带 `tsconfig` 路径别名、
-类继承链、两包 Go module），真实建索引并跑 32 项断言：取值改动不算契约变更、重命名导出后
-悬空引用被报出来、新文件被拾取、删除文件被报告、Go 跨包引用为 `exact`、warm start 从 manifest
-加载、以及"提到 constructor 的文件依然能解析"这条原型链回归。
+类继承链、两包 Go module），真实建索引并跑 36 项断言：取值改动不算契约变更、重命名导出后
+悬空引用被报出来、目录改名不算悬空、新文件被拾取、删除文件被报告、Go 跨包引用为 `exact`、
+warm start 从 manifest 加载、以及"提到 constructor 的文件依然能解析"这条原型链回归
+（那是真 bug：用普通对象当分隔符栈，撞上了 `Object.prototype.constructor`）。
 
 ## 许可
 
