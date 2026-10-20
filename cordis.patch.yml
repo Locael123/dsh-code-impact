@@ -1,5 +1,5 @@
 - insert:
-    - id: code-intel
-      name: code-intel
+    - id: dsh-code-impact
+      name: dsh-code-impact
       config:
         maxFiles: 20000

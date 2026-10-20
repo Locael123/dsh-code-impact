@@ -1,15 +1,16 @@
 {
-	"name": "code-intel",
+	"name": "dsh-code-impact",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
-	"description": "Workspace symbol index: declarations, references, inheritance, and post-edit impact checks for the harness.",
+	"description": "Post-edit impact checks for the harness: a symbol index, reference graph, and inheritance model that answer what an edit touched, from an index instead of a re-scan.",
 	"keywords": [
 		"dsh",
 		"dsh-plugin",
 		"deepseek-harness",
 		"cordis",
 		"code-intelligence",
+		"code-impact",
 		"symbol-index",
 		"code-navigation",
 		"impact-analysis"
@@ -34,7 +35,8 @@
 		"icon.svg",
 		"cordis.patch.yml",
 		"README.md",
-		"README.zh.md"
+		"README.zh.md",
+		"LICENSE"
 	],
 	"dsh": {
 		"bundle": {

@@ -1,5 +1,5 @@
 /**
- * code-intel — a workspace symbol index for the harness.
+ * dsh-code-impact — a workspace symbol index for the harness.
  *
  * The point is not to have a database of code. The point is that after a small
  * edit the agent can ask "what did this touch?" and get an answer in one call
@@ -15,7 +15,7 @@ import { CodeQuery } from './lib/query.js';
 import { CodeIndex } from './lib/store.js';
 import { createTools } from './lib/tools.js';
 
-export const name = 'code-intel';
+export const name = 'dsh-code-impact';
 export const inject = ['tools'];
 
 const PROMPT = [
@@ -31,7 +31,7 @@ function dshHome() {
 export function apply(ctx, config = {}) {
 	const log = (message) => {
 		try {
-			ctx.logger?.debug?.(`[code-intel] ${message}`);
+			ctx.logger?.debug?.(`[dsh-code-impact] ${message}`);
 		} catch {
 			/* logging must never break a tool call */
 		}
@@ -111,7 +111,7 @@ export function apply(ctx, config = {}) {
 	try {
 		const prompt = ctx.systemPrompt;
 		if (prompt && typeof prompt.section === 'function') {
-			prompt.section({ name: 'code-intel', order: 40, text: PROMPT });
+			prompt.section({ name: 'dsh-code-impact', order: 40, text: PROMPT });
 		}
 	} catch (error) {
 		log(`systemPrompt unavailable: ${error?.message ?? error}`);

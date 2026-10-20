@@ -35,7 +35,7 @@ function check(label, fn) {
 }
 
 async function main() {
-	const root = await fs.mkdtemp(path.join(os.tmpdir(), 'code-intel-'));
+	const root = await fs.mkdtemp(path.join(os.tmpdir(), 'dsh-code-impact-'));
 	await fs.cp(fixture, root, { recursive: true });
 	const cacheDir = path.join(root, '.cache');
 
@@ -134,6 +134,20 @@ async function main() {
 	check('body-only edit reports a clean verdict', () => assert.equal(bodyEdit.verdict, 'internal', bodyEdit.verdict));
 	check('body-only edit finds no dangling references', () => assert.equal(bodyEdit.summary.dangling, 0));
 
+	// ---- a .js file: its id must agree with the walker's language tag --------
+	const helperPath = path.join(root, 'src/helper.js');
+	await fs.writeFile(helperPath, 'export class Helper {\n\trun() {\n\t\treturn 1;\n\t}\n}\n', 'utf8');
+	await query.verify({});
+	await fs.writeFile(helperPath, 'export class Helper {\n\trun() {\n\t\treturn 2;\n\t}\n}\n', 'utf8');
+	const jsEdit = await query.verify({});
+	check('a .js body edit is not reported as a removal', () => {
+		assert.equal(jsEdit.summary.removed, 0, JSON.stringify(jsEdit.removedSymbols));
+		assert.ok(jsEdit.bodyOnly.some((b) => b.id.endsWith('#Helper.run')), JSON.stringify(jsEdit.bodyOnly));
+		assert.ok(jsEdit.bodyOnly.every((b) => b.id.startsWith('js:')), JSON.stringify(jsEdit.bodyOnly.map((b) => b.id)));
+	});
+	await fs.rm(helperPath);
+	await query.verify({});
+
 	// ---- renamed export -----------------------------------------------------
 	const configPath = path.join(root, 'src/config.ts');
 	const configSrc = await fs.readFile(configPath, 'utf8');
@@ -143,6 +157,8 @@ async function main() {
 	check('rename surfaces dangling references', () => assert.ok(rename.summary.dangling >= 2, JSON.stringify(rename.summary)));
 	check('rename verdict is breaking', () => assert.equal(rename.verdict, 'breaking', rename.verdict));
 	check('dangling sites carry file and line', () => assert.ok(rename.dangling.every((d) => d.path && d.line > 0)));
+	check('the removed symbol is named in the answer', () =>
+		assert.ok(rename.removedSymbols.some((id) => id.endsWith('#parseTimeout')), JSON.stringify(rename.removedSymbols)));
 	const renamed = await query.find({ name: 'parseTimeoutMs' });
 	check('new name is indexed', () => assert.equal(renamed.total, 1));
 
@@ -166,6 +182,24 @@ async function main() {
 		assert.equal(deleted.summary.removedFiles, 1, JSON.stringify(deleted.summary));
 		assert.ok(deleted.summary.removed >= 1, JSON.stringify(deleted.summary));
 	});
+
+	// ---- a mention that never resolved is not a dangling reference ----------
+	await fs.writeFile(path.join(root, 'src/gone.ts'), 'export const goneThing = 1;\n', 'utf8');
+	await fs.writeFile(
+		path.join(root, 'src/missing-dep.ts'),
+		"import { goneThing } from 'not-installed';\nexport const copy = goneThing;\n",
+		'utf8',
+	);
+	const seeded = await query.verify({});
+	check('seeds a symbol and an unresolvable mention', () => assert.equal(seeded.summary.failed, 0, JSON.stringify(seeded.summary)));
+	await fs.rm(path.join(root, 'src/gone.ts'));
+	const ghost = await query.verify({});
+	check('a mention that never resolved is not called dangling', () =>
+		assert.equal(ghost.summary.dangling, 0, JSON.stringify(ghost.dangling.slice(0, 5))));
+	await fs.rm(path.join(root, 'src/missing-dep.ts'));
+	await query.verify({});
+	// The manifest write is debounced; give it a beat before the round trip.
+	await new Promise((resolve) => setTimeout(resolve, 900));
 
 	// ---- cache round trip ---------------------------------------------------
 	const second = new CodeIndex({ root, cacheDir, log: () => {} });

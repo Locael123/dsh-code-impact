@@ -1,6 +1,6 @@
-# code-intel
+# dsh-code-impact
 
-**Code intelligence for [DeepSeek Harness](https://github.com/deepseek-ai) — a symbol index, a reference graph, and a post-edit impact check that replaces "grep the repo and re-run everything".**
+**Post-edit impact checks for [DeepSeek Harness](https://github.com/deepseek-ai) — a symbol index, a reference graph, and an inheritance model that answer "what did this edit touch?" instead of "grep the repo and re-run everything".**
 
 [![DSH plugin](https://img.shields.io/badge/DSH-plugin-4B6BFB?style=flat-square)](package.json)
 [![engine](https://img.shields.io/badge/engine-heuristic%20·%20zero%20deps-3DA639?style=flat-square)](#how-it-works)
@@ -63,7 +63,7 @@ Call it after editing instead of re-scanning. It re-parses only the files that c
 (and discovers new ones), then reports a symbol-level diff:
 
 ```
-verify — verdict: body-only
+verify — verdict: internal
   1 file changed (0 deleted) · +0 -0 symbols · 1 body-only
 
 body-only (signature unchanged, callers unaffected):
@@ -72,7 +72,10 @@ body-only (signature unchanged, callers unaffected):
 
 ```
 verify — verdict: breaking
-  1 file changed (0 deleted) · +1 -1 symbols · 0 contract
+  1 file changed (0 deleted) · +1 -1 symbols · 1 contract
+
+symbols that no longer exist:
+  ts:src/config.ts#parseTimeout
 
 references that no longer resolve:
   dangling src/policy.ts:4  parseTimeout
@@ -81,6 +84,11 @@ references that no longer resolve:
 `verdict` has four levels: `clean` (nothing changed), `internal` (implementation only),
 `contract` (signature/export changed, callers may need edits), `breaking` (some reference no
 longer resolves).
+
+A reference is only called dangling when it **used to resolve to the symbol that went away**. A
+mention that never resolved in the first place — `filepath.Base`, a package that is not installed,
+a name the heuristic merely guessed at — is not reported, because a false alarm costs more than a
+missed one.
 
 The rule that makes it useful in practice: `const timeout = 30` → `= 60` is a **value change**,
 reported as body-only, never as a contract change. Containers (class / interface / struct) are not
@@ -93,19 +101,25 @@ each edit, and the answer is about what you just did.
 
 ## Install
 
-`code-intel` is a DSH host bundle: zero dependencies, plain ESM, one patch row.
+`dsh-code-impact` is a DSH host bundle: zero dependencies, plain ESM, one patch row.
 
 ```bash
-# from a checkout / clone
-plugin_manager install_bundle <absolute path>/code-intel
+# from GitHub (or any published tarball / registry package)
+dsh plugin --profile desktop add github:yangxy111/dsh-code-impact
+dsh web    # restart: the host half of a plugin is imported once, at boot
+```
+
+```bash
+# from a local checkout
+plugin_manager install_bundle <absolute path>/dsh-code-impact
 ```
 
 Manual install — only if the package is already resolvable from the profile's `node_modules`
 (`plugin_manager` does that for you; a bare `cordis.yml` row alone will not):
 
 ```yaml
-- id: code-intel
-  name: code-intel
+- id: dsh-code-impact
+  name: dsh-code-impact
   config:
     maxFiles: 20000
 ```
@@ -184,4 +198,4 @@ mentions `constructor` still parses.
 
 ## License
 
-Not set yet — add one before publishing (`MIT` is the usual choice for a plugin like this).
+[MIT](LICENSE)

@@ -1,6 +1,6 @@
-# code-intel
+# dsh-code-impact
 
-**给 [DeepSeek Harness](https://github.com/deepseek-ai) 用的代码索引插件 —— 符号索引、引用图，以及"改完只看受影响面"的增量校验。**
+**给 [DeepSeek Harness](https://github.com/deepseek-ai) 用的改动影响分析插件 —— 符号索引、引用图、继承模型，回答"这次改动影响了什么"，而不是全仓重扫一遍。**
 
 [![DSH plugin](https://img.shields.io/badge/DSH-plugin-4B6BFB?style=flat-square)](package.json)
 [![engine](https://img.shields.io/badge/engine-heuristic%20·%20zero%20deps-3DA639?style=flat-square)](#实现要点)
@@ -58,7 +58,7 @@ src/service.ts:5  value  in makeService
 然后报告符号级差异：
 
 ```
-verify — verdict: body-only
+verify — verdict: internal
   1 file changed (0 deleted) · +0 -0 symbols · 1 body-only
 
 body-only (signature unchanged, callers unaffected):
@@ -67,7 +67,10 @@ body-only (signature unchanged, callers unaffected):
 
 ```
 verify — verdict: breaking
-  1 file changed (0 deleted) · +1 -1 symbols · 0 contract
+  1 file changed (0 deleted) · +1 -1 symbols · 1 contract
+
+symbols that no longer exist:
+  ts:src/config.ts#parseTimeout
 
 references that no longer resolve:
   dangling src/policy.ts:4  parseTimeout
@@ -75,6 +78,9 @@ references that no longer resolve:
 
 `verdict` 四档：`clean`（没有变化）、`internal`（只动了实现）、`contract`（签名/导出变了，
 调用方可能要改）、`breaking`（有引用已经解析不到）。
+
+只有**原本确实指向这个符号**的提及，才会在它消失后被判为 dangling。那些一开始就解析不到的
+名字——`filepath.Base`、没装的包、启发式只是猜过的名字——不会被报出来：误报的代价比漏报大。
 
 契约判定的一条关键规则：`const timeout = 30` 改成 `= 60` 是**取值变化**，
 按 body-only 处理，不会误报成契约变更；类/接口/struct 这类容器本身不计入变更列表
@@ -85,19 +91,25 @@ references that no longer resolve:
 
 ## 安装与配置
 
-`code-intel` 是一个 DSH host bundle：零依赖、纯 ESM、一行 patch 记录。
+`dsh-code-impact` 是一个 DSH host bundle：零依赖、纯 ESM、一行 patch 记录。
 
 ```bash
-# 从任意 checkout / clone 安装
-plugin_manager install_bundle <绝对路径>/code-intel
+# 从 GitHub 装（或任何已发布的 tarball / registry 包）
+dsh plugin --profile desktop add github:yangxy111/dsh-code-impact
+dsh web    # 重启：插件的宿主半只在启动时 import 一次
+```
+
+```bash
+# 从本地 checkout 装
+plugin_manager install_bundle <绝对路径>/dsh-code-impact
 ```
 
 手工安装——只在该包已经能从 profile 的 `node_modules` 解析到时可用（`plugin_manager` 会替你
 做好这件事，光加一行 `cordis.yml` 不够）：
 
 ```yaml
-- id: code-intel
-  name: code-intel
+- id: dsh-code-impact
+  name: dsh-code-impact
   config:
     maxFiles: 20000
 ```
@@ -167,4 +179,4 @@ node test/selftest.mjs
 
 ## 许可
 
-尚未设置 —— 发布前加一个（这类插件通常用 `MIT`）。
+[MIT](LICENSE)
