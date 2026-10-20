@@ -116,17 +116,27 @@ supertypes, subtypes and the file that declares it. The header carries the hones
 files / symbols / names / languages, when the index was built, and a warning when files were
 skipped — plus a `Refresh` button that re-checks the disk before redrawing.
 
+The page draws **one indexed workspace at a time**, and the folder box under the header is how a
+second one gets in: type an absolute path (`D:\work\my-project`), press Enter, and the page builds
+an index for it and switches to it. The same workspace stays in the dropdown afterwards. This is
+the only way a workspace appears without the agent using a tool in it first — a session whose cwd
+is the project also indexes it, implicitly, the first time `code_query` runs.
+
 It is a client half of the bundle (`client.js`, React, theme tokens only — no iframe, no inline
-HTML), talking to the host through three read-only JSON routes:
+HTML), talking to the host through three read routes and one build route:
 
 ```
-GET /code-impact/api/roots
-GET /code-impact/api/overview?root=<abs path>&refresh=1
-GET /code-impact/api/file?root=<abs path>&path=<repo-relative path>
+GET  /code-impact/api/roots
+GET  /code-impact/api/overview?root=<abs path>&refresh=1
+GET  /code-impact/api/file?root=<abs path>&path=<repo-relative path>
+POST /code-impact/api/index          {"root": "<absolute path>"}
 ```
 
-Roots are allow-listed: the page can only read a directory that is already indexed, or the
-session's working directory. Nothing here writes.
+Reads are allow-listed: the page can only read a directory that is already indexed, or the
+session's working directory. `POST /index` is the one route that does work on request — it builds a
+cache for the exact directory you named and nothing else, refuses relative paths, missing
+directories and plain files with a `400` carrying the reason, and never writes inside your
+repository.
 
 ## Install
 
@@ -216,6 +226,7 @@ warm start from manifest 3 ms for a 5-file fixture.
 
 ```bash
 node test/selftest.mjs               # index + tools, 36 assertions
+node test/addroot.mjs               # the page's "index a folder" path, including its refusals
 node test/webcheck.mjs <repo>        # the JSON routes the page calls
 node test/clientsmoke.mjs            # client half registers its settings section
 ```

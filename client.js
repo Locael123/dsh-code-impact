@@ -59,6 +59,9 @@ window.__ModuleLoader__.load({
 				kindEnum: 'enum',
 				kindTrait: 'trait',
 				kindImpl: 'impl',
+				indexPlaceholder: 'D:\\path\\to\\project',
+				indexAction: 'Index folder',
+				indexHint: 'Build an index for any folder on this machine; the pictures are drawn from it.',
 			},
 			zh: {
 				title: '代码影响分析',
@@ -108,6 +111,9 @@ window.__ModuleLoader__.load({
 				kindEnum: '枚举',
 				kindTrait: 'trait',
 				kindImpl: 'impl',
+				indexPlaceholder: 'D:\\项目路径',
+				indexAction: '建立索引',
+				indexHint: '可以给本机任意目录建索引，图就是这份索引画出来的。',
 			},
 		};
 
@@ -149,6 +155,17 @@ window.__ModuleLoader__.load({
 
 		async function getJson(url) {
 			const response = await fetch(url, { headers: { accept: 'application/json' } });
+			const body = await response.json().catch(() => null);
+			if (!response.ok) throw new Error((body && body.error) || `HTTP ${response.status}`);
+			return body;
+		}
+
+		async function postJson(url, payload) {
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json', accept: 'application/json' },
+				body: JSON.stringify(payload ?? {}),
+			});
 			const body = await response.json().catch(() => null);
 			if (!response.ok) throw new Error((body && body.error) || `HTTP ${response.status}`);
 			return body;
@@ -935,6 +952,29 @@ window.__ModuleLoader__.load({
 
 			const activeRoot = root ?? (data && data.root) ?? null;
 
+			const [pathInput, setPathInput] = useState('');
+			const [indexing, setIndexing] = useState(false);
+			const [indexError, setIndexError] = useState(null);
+			const [indexNote, setIndexNote] = useState(null);
+
+			const submitIndex = useCallback(() => {
+				const target = pathInput.trim();
+				if (!target || indexing) return;
+				setIndexing(true);
+				setIndexError(null);
+				setIndexNote(null);
+				postJson(apiUrl('index'), { root: target })
+					.then((added) => {
+						setPathInput('');
+						setRoot(added.root);
+						setSelected(null);
+						setTick((value) => value + 1);
+						setIndexNote(`${added.files} files · ${added.symbols} symbols`);
+					})
+					.catch((failure) => setIndexError(String(failure && failure.message ? failure.message : failure)))
+					.finally(() => setIndexing(false));
+			}, [pathInput, indexing]);
+
 			const onSelect = useCallback((value) => {
 				setSelected(value);
 			}, []);
@@ -1063,6 +1103,38 @@ window.__ModuleLoader__.load({
 					),
 				),
 				header,
+				h(
+					'div',
+					{ style: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' } },
+					h('input', {
+						value: pathInput,
+						placeholder: t('indexPlaceholder'),
+						'aria-label': t('indexAction'),
+						onChange: (event) => setPathInput(event.target.value),
+						onKeyDown: (event) => {
+							if (event.key === 'Enter') submitIndex();
+						},
+						style: {
+							flex: '1 1 260px',
+							minWidth: 180,
+							maxWidth: 420,
+							fontSize: 11,
+							padding: '5px 8px',
+							borderRadius: 7,
+							border: '1px solid var(--dsw-alias-border-l1)',
+							background: 'var(--dsw-alias-bg-layer-1)',
+							color: 'var(--dsw-alias-label-primary)',
+						},
+					}),
+					button(indexing ? '…' : t('indexAction'), submitIndex, { disabled: indexing }),
+					indexError
+						? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-state-error-primary)', wordBreak: 'break-word' } }, indexError)
+						: null,
+					indexNote
+						? h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-state-success-primary)' } }, indexNote)
+						: null,
+					h('span', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)' } }, t('indexHint')),
+				),
 				h(
 					'div',
 					{ style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },

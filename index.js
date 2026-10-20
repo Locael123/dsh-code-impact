@@ -141,12 +141,24 @@ export function apply(ctx, config = {}) {
 		return path.resolve(process.cwd());
 	}
 
-	try {
-		const dispose = registerWebRoutes(ctx, { feed, defaultRoot, log });
-		if (dispose) {
-			ctx.effect(() => dispose);
-			log('web routes registered at /code-impact/api/');
+	// The web carrier is not necessarily listening when this plugin applies: at
+	// boot the listener comes up after the plugin graph is composed, so a single
+	// probe here returns undefined and the page would 404 forever. Declare the
+	// dependency instead — the callback runs when the service exists, and again
+	// if it is replaced.
+	const mountWeb = (scoped) => {
+		const dispose = registerWebRoutes(scoped, { feed, defaultRoot, log });
+		if (!dispose) {
+			log('web server is present but the route was not registered');
+			return;
 		}
+		if (typeof scoped.effect === 'function') scoped.effect(() => dispose);
+		else dispose();
+		log('web routes registered at /code-impact/api/');
+	};
+	try {
+		if (typeof ctx.inject === 'function') ctx.inject(['webServer'], mountWeb);
+		else mountWeb(ctx);
 	} catch (error) {
 		log(`web routes unavailable: ${error?.message ?? error}`);
 	}

@@ -1,6 +1,6 @@
 {
 	"name": "dsh-code-impact",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"private": true,
 	"type": "module",
 	"description": "Post-edit impact checks for the harness: a symbol index, reference graph, and inheritance model that answer what an edit touched, from an index instead of a re-scan.",

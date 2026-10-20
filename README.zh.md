@@ -106,16 +106,23 @@ references that no longer resolve:
 "诚实标签"：文件数 / 符号数 / 名字数 / 语言分布 / 索引构建时间 / 有文件被跳过时的警告，外加一个
 `刷新` 按钮——刷新会先核对磁盘再重画。
 
+页面一次画**一个已建索引的工作区**，要换项目用标题下面那个目录框：填绝对路径（`D:\work\my-project`）
+回车，它为这个目录建索引并切过去，之后也能在下拉框里选回来。这是"agent 没用过工具"也能进页面的
+唯一入口——如果某个会话的 cwd 就是那个项目，它第一次跑 `code_query` 时也会顺带建好索引。
+
 它是 bundle 的客户端半（`client.js`，React，只用主题 token——没有 iframe、不拼 HTML），通过
-三条只读 JSON 路由和宿主通信：
+三条读路由和一条建索引路由和宿主通信：
 
 ```
-GET /code-impact/api/roots
-GET /code-impact/api/overview?root=<绝对路径>&refresh=1
-GET /code-impact/api/file?root=<绝对路径>&path=<仓库相对路径>
+GET  /code-impact/api/roots
+GET  /code-impact/api/overview?root=<绝对路径>&refresh=1
+GET  /code-impact/api/file?root=<绝对路径>&path=<仓库相对路径>
+POST /code-impact/api/index          {"root": "<绝对路径>"}
 ```
 
-根目录是白名单：页面只能读已建索引的目录，或当前会话的工作目录。这里没有任何写操作。
+读路由是白名单：页面只能读已建索引的目录，或当前会话的工作目录。`POST /index` 是唯一会干活的
+路由——它只为你点名的那个目录建缓存，拒绝相对路径 / 不存在的目录 / 普通文件（返回 `400` 并带上
+原因），并且永远不会往你的仓库里写东西。
 
 ## 安装与配置
 
@@ -198,7 +205,8 @@ warm start 3 ms。
 
 ```bash
 node test/selftest.mjs               # 索引 + 工具，36 条断言
-node test/webcheck.mjs <仓库路径>     # 页面调的那三条 JSON 路由
+node test/addroot.mjs                # 页面"给目录建索引"的路径，含各种拒绝
+node test/webcheck.mjs <仓库路径>     # 页面调的那四条 JSON 路由
 node test/clientsmoke.mjs            # 客户端半能正确注册设置页
 ```
 

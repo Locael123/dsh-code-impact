@@ -30,4 +30,27 @@ for (const route of ['roots', 'overview', 'file?path=lib/feed.js', 'nope']) {
 	const body = await response.text();
 	console.log(route, response.status, body.slice(0, 240).replace(/\n/g, ' '));
 }
+
+// The page can ask for a folder to be indexed. Bad input is a 400 with the
+// reason, never a 500, because it is the user typing a path.
+for (const body of [{}, { root: 'relative/path' }, { root: path.join(root, 'nope-does-not-exist') }]) {
+	const response = await fetch(`${base}/index`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(body),
+	});
+	console.log('POST index', JSON.stringify(body), response.status, (await response.text()).slice(0, 160));
+}
+
+const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+const created = await fetch(`${base}/index`, {
+	method: 'POST',
+	headers: { 'content-type': 'application/json' },
+	body: JSON.stringify({ root: path.join(here, 'fixture') }),
+});
+console.log('POST index fixture', created.status, (await created.text()).slice(0, 200));
+
+const wrongMethod = await fetch(`${base}/overview`, { method: 'POST', body: '{}' });
+console.log('POST overview', wrongMethod.status, (await wrongMethod.text()).slice(0, 120));
+
 server.close();
