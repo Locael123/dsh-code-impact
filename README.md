@@ -5,7 +5,7 @@
 [![DSH plugin](https://img.shields.io/badge/DSH-plugin-4B6BFB?style=flat-square)](package.json)
 [![engine](https://img.shields.io/badge/engine-heuristic%20·%20zero%20deps-3DA639?style=flat-square)](#how-it-works)
 [![languages](https://img.shields.io/badge/languages-TS%20·%20JS%20·%20Go-3178C6?style=flat-square)](#scope--limits)
-[![tests](https://img.shields.io/badge/tests-32%20passing-3DA639?style=flat-square)](test/selftest.mjs)
+[![tests](https://img.shields.io/badge/tests-36%20passing-3DA639?style=flat-square)](test/selftest.mjs)
 
 [中文文档](README.zh.md)
 
@@ -110,11 +110,21 @@ the index rather than from a fresh scan:
 | Architecture | a treemap of directories weighted by symbol count, coloured by language — where the code actually lives |
 | Imports | the file-level import graph as a chord diagram; hover a file to isolate its edges |
 | Inheritance | the type hierarchy by depth, `implements` drawn dashed |
+| Sessions | which sessions used the plugin, what they asked, what came back |
 
 Clicking a file lists its symbols with kind, signature and line; clicking a type shows its
 supertypes, subtypes and the file that declares it. The header carries the honesty chips —
 files / symbols / names / languages, when the index was built, and a warning when files were
 skipped — plus a `Refresh` button that re-checks the disk before redrawing.
+
+The **Sessions** tab is the plugin's own audit trail: every `code_query` / `code_verify` call is
+recorded per session (id, working directory, call counts, and the last 40 calls with their target
+and one-line outcome). It is written to `$DSH_HOME/cache/code-index/usage.json`, so it survives a
+restart and covers sessions this process never saw. It records the plugin's own calls only — it is
+not an authority on what the agent did — and `Clear` empties it without touching the index.
+
+`Open full page` puts the same map in a browser tab (`/code-impact/app`) with more room and no
+settings chrome behind it; the two views share the same routes and the same index.
 
 The page draws **one indexed workspace at a time**, and the folder box under the header is how a
 second one gets in: type an absolute path (`D:\work\my-project`), press Enter, and the page builds
@@ -123,13 +133,18 @@ the only way a workspace appears without the agent using a tool in it first — 
 is the project also indexes it, implicitly, the first time `code_query` runs.
 
 It is a client half of the bundle (`client.js`, React, theme tokens only — no iframe, no inline
-HTML), talking to the host through three read routes and one build route:
+HTML), talking to the host through read routes, one build route, and the usage routes. The
+standalone page (`web/app.html` + `web/app.js`, plain DOM and SVG) is served from the same host:
 
 ```
 GET  /code-impact/api/roots
 GET  /code-impact/api/overview?root=<abs path>&refresh=1
 GET  /code-impact/api/file?root=<abs path>&path=<repo-relative path>
 POST /code-impact/api/index          {"root": "<absolute path>"}
+GET  /code-impact/api/usage?limit=100
+POST /code-impact/api/usage/clear    {}
+GET  /code-impact/app                the full-page view
+GET  /code-impact/app.js
 ```
 
 Reads are allow-listed: the page can only read a directory that is already indexed, or the
@@ -227,6 +242,7 @@ warm start from manifest 3 ms for a 5-file fixture.
 ```bash
 node test/selftest.mjs               # index + tools, 36 assertions
 node test/addroot.mjs               # the page's "index a folder" path, including its refusals
+node test/usage.mjs                 # the usage ledger: per-session records, persistence, clearing
 node test/webcheck.mjs <repo>        # the JSON routes the page calls
 node test/clientsmoke.mjs            # client half registers its settings section
 ```

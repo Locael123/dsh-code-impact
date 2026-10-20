@@ -5,7 +5,7 @@
 [![DSH plugin](https://img.shields.io/badge/DSH-plugin-4B6BFB?style=flat-square)](package.json)
 [![engine](https://img.shields.io/badge/engine-heuristic%20·%20zero%20deps-3DA639?style=flat-square)](#实现要点)
 [![languages](https://img.shields.io/badge/languages-TS%20·%20JS%20·%20Go-3178C6?style=flat-square)](#支持范围与边界)
-[![tests](https://img.shields.io/badge/tests-32%20passing-3DA639?style=flat-square)](test/selftest.mjs)
+[![tests](https://img.shields.io/badge/tests-36%20passing-3DA639?style=flat-square)](test/selftest.mjs)
 
 [English](README.md)
 
@@ -93,7 +93,7 @@ references that no longer resolve:
 
 ## 索引页（可视化）
 
-同一份索引可以直接看：**设置 → 代码影响分析（Code Impact）**。三个视图，数据全部来自索引，
+同一份索引可以直接看：**设置 → 代码影响分析（Code Impact）**。四个视图，数据全部来自索引，
 不会重新扫描仓库：
 
 | 视图 | 回答什么 |
@@ -101,23 +101,37 @@ references that no longer resolve:
 | 架构图 | 按符号数加权的目录 treemap，按语言着色——代码实际堆在哪里 |
 | 依赖图 | 文件级 import 关系的弦图，悬停某个文件会高亮它的边 |
 | 继承图 | 按继承深度分层的类型 DAG，`implements` 用虚线 |
+| 会话 | 哪些会话用过这个插件、问了什么、返回了什么 |
 
 点文件列出它的符号（kind、签名、行号）；点类型显示它的父类型、子类型和声明文件。顶部一排
 "诚实标签"：文件数 / 符号数 / 名字数 / 语言分布 / 索引构建时间 / 有文件被跳过时的警告，外加一个
 `刷新` 按钮——刷新会先核对磁盘再重画。
+
+**会话**页是这个插件自己的审计记录：每次 `code_query` / `code_verify` 都按会话记下来（会话 id、
+工作目录、调用次数，以及最近 40 次的查询目标和一行结果）。它写在
+`$DSH_HOME/cache/code-index/usage.json`，所以重启不丢，也能看到本进程没见过的会话。它只记录
+这个插件自己的调用——不是"agent 做过什么"的权威记录——`清空` 只清记录，不动索引。
+
+`全屏打开` 会把同一张图放进浏览器新标签页（`/code-impact/app`），空间更大、背后没有设置页的
+框；两边共用同一批路由和同一份索引。
 
 页面一次画**一个已建索引的工作区**，要换项目用标题下面那个目录框：填绝对路径（`D:\work\my-project`）
 回车，它为这个目录建索引并切过去，之后也能在下拉框里选回来。这是"agent 没用过工具"也能进页面的
 唯一入口——如果某个会话的 cwd 就是那个项目，它第一次跑 `code_query` 时也会顺带建好索引。
 
 它是 bundle 的客户端半（`client.js`，React，只用主题 token——没有 iframe、不拼 HTML），通过
-三条读路由和一条建索引路由和宿主通信：
+读路由、一条建索引路由和会话记录路由和宿主通信。独立的页面（`web/app.html` + `web/app.js`，
+纯 DOM + SVG）由同一个宿主提供：
 
 ```
 GET  /code-impact/api/roots
 GET  /code-impact/api/overview?root=<绝对路径>&refresh=1
 GET  /code-impact/api/file?root=<绝对路径>&path=<仓库相对路径>
 POST /code-impact/api/index          {"root": "<绝对路径>"}
+GET  /code-impact/api/usage?limit=100
+POST /code-impact/api/usage/clear    {}
+GET  /code-impact/app                全屏页
+GET  /code-impact/app.js
 ```
 
 读路由是白名单：页面只能读已建索引的目录，或当前会话的工作目录。`POST /index` 是唯一会干活的
@@ -206,7 +220,8 @@ warm start 3 ms。
 ```bash
 node test/selftest.mjs               # 索引 + 工具，36 条断言
 node test/addroot.mjs                # 页面"给目录建索引"的路径，含各种拒绝
-node test/webcheck.mjs <仓库路径>     # 页面调的那四条 JSON 路由
+node test/usage.mjs                  # 会话记录：按会话记账、持久化、清空
+node test/webcheck.mjs <仓库路径>     # 页面调的那几条 JSON 路由
 node test/clientsmoke.mjs            # 客户端半能正确注册设置页
 ```
 

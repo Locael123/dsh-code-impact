@@ -62,6 +62,18 @@ window.__ModuleLoader__.load({
 				indexPlaceholder: 'D:\\path\\to\\project',
 				indexAction: 'Index folder',
 				indexHint: 'Build an index for any folder on this machine; the pictures are drawn from it.',
+				tabSessions: 'Sessions',
+				sessionsHint: 'every call this plugin answered, newest session first',
+				session: 'session',
+				workspace: 'workspace',
+				calls: 'calls',
+				lastUsed: 'last used',
+				noSessions: 'No call recorded yet. Ask for something that uses code_query or code_verify.',
+				clear: 'Clear',
+				clearConfirm: 'Clear the usage ledger? The index itself is not touched.',
+				recentCalls: 'recent calls',
+				openFull: 'Open full page',
+				openFullHint: 'the same map in a browser tab, with more room',
 			},
 			zh: {
 				title: '代码影响分析',
@@ -114,6 +126,18 @@ window.__ModuleLoader__.load({
 				indexPlaceholder: 'D:\\项目路径',
 				indexAction: '建立索引',
 				indexHint: '可以给本机任意目录建索引，图就是这份索引画出来的。',
+				tabSessions: '会话',
+				sessionsHint: '这个插件回答过的每一次调用，最近的会话在前',
+				session: '会话',
+				workspace: '工作区',
+				calls: '调用',
+				lastUsed: '最近使用',
+				noSessions: '还没有记录。让 agent 跑一次 code_query 或 code_verify。',
+				clear: '清空',
+				clearConfirm: '清空使用记录？索引本身不受影响。',
+				recentCalls: '最近调用',
+				openFull: '全屏打开',
+				openFullHint: '在浏览器新标签页里看同一张图，空间更大',
 			},
 		};
 
@@ -204,6 +228,25 @@ window.__ModuleLoader__.load({
 				};
 			}, [tick]);
 			return roots;
+		}
+
+		function useUsage(tick) {
+			const [state, setState] = useState({ loading: true, error: null, data: null });
+			useEffect(() => {
+				let alive = true;
+				setState((prev) => ({ ...prev, loading: true, error: null }));
+				getJson(apiUrl('usage', { limit: 100 }))
+					.then((data) => {
+						if (alive) setState({ loading: false, error: null, data });
+					})
+					.catch((error) => {
+						if (alive) setState({ loading: false, error: String(error && error.message ? error.message : error), data: null });
+					});
+				return () => {
+					alive = false;
+				};
+			}, [tick]);
+			return state;
 		}
 
 		function useFileDetail(root, relPath) {
@@ -942,6 +985,123 @@ window.__ModuleLoader__.load({
 			);
 		}
 
+		function UsageView({ data, onSelect, selected }) {
+			if (!data) return h(Empty, { text: t('loading') });
+			if (!data.sessions || data.sessions.length === 0) return h(Empty, { text: t('noSessions') });
+			const head = ['session', 'workspace', 'calls', 'lastUsed'];
+			return h(
+				'div',
+				{ style: { fontSize: 12 } },
+				h(
+					'div',
+					{ style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginBottom: 8 } },
+					`${data.totals.sessions} ${t('session')} · ${data.totals.calls} ${t('calls')}`,
+				),
+				h(
+					'table',
+					{ style: { width: '100%', borderCollapse: 'collapse' } },
+					h(
+						'thead',
+						{},
+						h(
+							'tr',
+							{},
+							...head.map((key) =>
+								h(
+									'th',
+									{
+										key,
+										style: {
+											textAlign: 'left',
+											fontWeight: 500,
+											fontSize: 10,
+											textTransform: 'uppercase',
+											letterSpacing: '0.5px',
+											color: 'var(--dsw-alias-label-secondary)',
+											padding: '4px 6px',
+											borderBottom: '1px solid var(--dsw-alias-border-l1)',
+										},
+									},
+									t(key),
+								),
+							),
+						),
+					),
+					h(
+						'tbody',
+						{},
+						...data.sessions.map((session) => {
+							const active = selected && selected.kind === 'session' && selected.session.id === session.id;
+							const calls = Object.entries(session.calls || {})
+								.map(([tool, n]) => `${tool} ${n}`)
+								.join(' · ');
+							return h(
+								'tr',
+								{
+									key: session.id,
+									onClick: () => onSelect({ kind: 'session', session }),
+									style: {
+										cursor: 'pointer',
+										background: active ? 'color-mix(in oklab, var(--dsw-alias-brand-primary) 10%, transparent)' : 'transparent',
+									},
+								},
+								h('td', { style: { padding: '5px 6px', borderBottom: '1px solid var(--dsw-alias-border-l1)' } }, h('code', { style: { fontSize: 11 } }, session.id)),
+								h(
+									'td',
+									{ style: { padding: '5px 6px', borderBottom: '1px solid var(--dsw-alias-border-l1)', color: 'var(--dsw-alias-label-secondary)', wordBreak: 'break-all' } },
+									session.cwd ? shortPath(session.cwd.replace(/\\/g, '/')) : '—',
+								),
+								h('td', { style: { padding: '5px 6px', borderBottom: '1px solid var(--dsw-alias-border-l1)' } }, calls || '—'),
+								h(
+									'td',
+									{ style: { padding: '5px 6px', borderBottom: '1px solid var(--dsw-alias-border-l1)', color: 'var(--dsw-alias-label-secondary)', whiteSpace: 'nowrap' } },
+									ageText(Date.now() - session.lastAt),
+								),
+							);
+						}),
+					),
+				),
+			);
+		}
+
+		function DetailSession({ session }) {
+			return h(
+				'div',
+				{ style: { fontSize: 12 } },
+				h('div', { style: { fontWeight: 600, wordBreak: 'break-all' } }, session.id),
+				h('div', { style: { color: 'var(--dsw-alias-label-secondary)', marginTop: 2, wordBreak: 'break-all' } }, session.cwd || '—'),
+				h(
+					'div',
+					{ style: { color: 'var(--dsw-alias-label-secondary)', marginTop: 6 } },
+					`${t('calls')}: ${Object.entries(session.calls || {}).map(([tool, n]) => `${tool} ${n}`).join(' · ') || '—'}`,
+				),
+				h('div', { style: { marginTop: 10, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--dsw-alias-label-secondary)' } }, t('recentCalls')),
+				...session.events.map((event, index) =>
+					h(
+						'div',
+						{
+							key: `${event.at}-${index}`,
+							style: {
+								display: 'flex',
+								gap: 8,
+								padding: '4px 0',
+								borderBottom: '1px solid var(--dsw-alias-border-l1)',
+								alignItems: 'baseline',
+							},
+						},
+						h('span', { style: { color: 'var(--dsw-alias-label-secondary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' } }, new Date(event.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+						h(
+							'div',
+							{ style: { minWidth: 0 } },
+							h('div', {}, `${event.tool}${event.op ? ` ${event.op}` : ''}`),
+							event.target ? h('code', { style: { fontSize: 11, wordBreak: 'break-all' } }, event.target) : null,
+							h('div', { style: { color: 'var(--dsw-alias-label-secondary)' } }, event.outcome || ''),
+						),
+					),
+				),
+			);
+		}
+
 		function CodeImpactPage() {
 			const [root, setRoot] = useState(null);
 			const [tick, setTick] = useState(0);
@@ -949,6 +1109,7 @@ window.__ModuleLoader__.load({
 			const [selected, setSelected] = useState(null);
 			const roots = useRoots(tick);
 			const { data, error, loading } = useOverview(root, tick);
+			const usage = useUsage(tick);
 
 			const activeRoot = root ?? (data && data.root) ?? null;
 
@@ -980,6 +1141,9 @@ window.__ModuleLoader__.load({
 			}, []);
 
 			const body = (() => {
+				if (tab === 'sessions') {
+					return h(UsageView, { data: usage.data, onSelect, selected });
+				}
 				if (error) {
 					return h(
 						'div',
@@ -1033,11 +1197,19 @@ window.__ModuleLoader__.load({
 					)
 				: null;
 
-			const tabs = [['architecture', t('tabArchitecture')], ['imports', t('tabImports')], ['types', t('tabTypes')]];
+			const tabs = [
+				['architecture', t('tabArchitecture')],
+				['imports', t('tabImports')],
+				['types', t('tabTypes')],
+				['sessions', t('tabSessions')],
+			];
 
 			const detail = (() => {
 				if (!selected) {
 					return h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary)' } }, t('selectHint'));
+				}
+				if (selected.kind === 'session') {
+					return h(DetailSession, { session: selected.session });
 				}
 				if (selected.kind === 'type') {
 					return h(DetailType, { type: selected.type, onOpenFile: (path) => setSelected({ kind: 'file', path }) });
@@ -1100,6 +1272,9 @@ window.__ModuleLoader__.load({
 								)
 							: null,
 						button(loading ? '…' : t('refresh'), () => setTick((value) => value + 1), { disabled: loading }),
+						button(t('openFull'), () => {
+							window.open('/code-impact/app', '_blank', 'noopener');
+						}, { title: t('openFullHint') }),
 					),
 				),
 				header,
@@ -1149,7 +1324,13 @@ window.__ModuleLoader__.load({
 							color: 'var(--dsw-alias-label-secondary)',
 						},
 					},
-					tab === 'architecture' ? t('architectureHint') : tab === 'imports' ? t('importsHint') : t('typesHint'),
+					tab === 'architecture'
+						? t('architectureHint')
+						: tab === 'imports'
+							? t('importsHint')
+							: tab === 'sessions'
+								? t('sessionsHint')
+								: t('typesHint'),
 				),
 				h(
 					'div',

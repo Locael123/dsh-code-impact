@@ -15,6 +15,7 @@ import { hashShort, toPosix } from './lib/files.js';
 import { CodeQuery } from './lib/query.js';
 import { CodeIndex } from './lib/store.js';
 import { createTools } from './lib/tools.js';
+import { UsageLog } from './lib/usage.js';
 import { registerWebRoutes } from './lib/web.js';
 
 export const name = 'dsh-code-impact';
@@ -46,6 +47,11 @@ export function apply(ctx, config = {}) {
 	// One feed per plugin instance, so an edit the tools already applied shows up
 	// in the page without a rebuild of its own.
 	const feed = new FeedService({ cacheRoot: path.join(dshHome(), 'cache', 'code-index'), log });
+
+	// The plugin's own audit trail: which session called which tool, about what,
+	// and what came back. Written here because only the tools know, and kept
+	// outside the session store because a session does not outlive its log.
+	const usage = new UsageLog({ file: path.join(dshHome(), 'cache', 'code-index', 'usage.json'), log });
 
 	async function resolveRoot(exec) {
 		if (config.root) return path.resolve(String(config.root));
@@ -104,6 +110,20 @@ export function apply(ctx, config = {}) {
 			return state.query;
 		},
 		ensureReady,
+		/**
+		 * Record one answered call. Attribution is best effort: an agent exposes
+		 * its shared session id, and a call outside an agent is still worth
+		 * counting rather than dropping.
+		 */
+		note(exec, entry) {
+			const agent = exec?.agent;
+			const session =
+				(typeof agent === 'string' ? agent : agent?.id ?? agent?.session?.id ?? agent?.session?.header?.id) ?? null;
+			const cwd = agent?.cwd ?? agent?.session?.header?.cwd ?? state.root ?? null;
+			usage
+				.record({ ...entry, session: session ? String(session) : null, cwd, root: state.root })
+				.catch((error) => log(`usage record failed: ${error?.message ?? error}`));
+		},
 	};
 
 	for (const definition of createTools(service)) {
@@ -147,7 +167,7 @@ export function apply(ctx, config = {}) {
 	// dependency instead — the callback runs when the service exists, and again
 	// if it is replaced.
 	const mountWeb = (scoped) => {
-		const dispose = registerWebRoutes(scoped, { feed, defaultRoot, log });
+		const dispose = registerWebRoutes(scoped, { feed, usage, defaultRoot, log });
 		if (!dispose) {
 			log('web server is present but the route was not registered');
 			return;

@@ -1,14 +1,18 @@
+import fs from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
 import { FeedService } from '../lib/feed.js';
+import { UsageLog } from '../lib/usage.js';
 import { createWebHandler } from '../lib/web.js';
 
 const cacheRoot = path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'cache', 'code-index');
 const root = process.argv[2] ?? process.cwd();
 
 const feed = new FeedService({ cacheRoot, log: (m) => console.log('[feed]', m) });
+const usage = new UsageLog({ file: path.join(cacheRoot, 'usage-webcheck.json') });
+await usage.record({ session: 'check', cwd: root, tool: 'code_query', op: 'find', target: 'FeedService', outcome: '3 matches' });
 const payload = await feed.overview(root);
 console.log('root', payload.root);
 console.log('status', JSON.stringify(payload.status));
@@ -19,7 +23,7 @@ console.log('sample edges', payload.edges.slice(0, 5));
 console.log('sample types', payload.types.slice(0, 3));
 
 const server = http.createServer(
-	createWebHandler({ feed, defaultRoot: async () => root, log: (m) => console.log('[web]', m) }),
+	createWebHandler({ feed, usage, defaultRoot: async () => root, log: (m) => console.log('[web]', m) }),
 );
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const { port } = server.address();
@@ -53,4 +57,11 @@ console.log('POST index fixture', created.status, (await created.text()).slice(0
 const wrongMethod = await fetch(`${base}/overview`, { method: 'POST', body: '{}' });
 console.log('POST overview', wrongMethod.status, (await wrongMethod.text()).slice(0, 120));
 
+// The usage ledger the Sessions tab reads.
+const usageGet = await fetch(`${base}/usage`);
+console.log('GET usage', usageGet.status, (await usageGet.text()).slice(0, 200));
+const usageCleared = await fetch(`${base}/usage/clear`, { method: 'POST', body: '{}' });
+console.log('POST usage/clear', usageCleared.status, (await usageCleared.text()).slice(0, 120));
+
+await fs.rm(path.join(cacheRoot, 'usage-webcheck.json'), { force: true }).catch(() => {});
 server.close();

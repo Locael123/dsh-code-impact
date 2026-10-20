@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Code Impact — index map</title>
+		<style>
+			:root {
+				color-scheme: light dark;
+				--bg: #ffffff;
+				--panel: #f6f7f9;
+				--line: #dcdfe4;
+				--text: #1c1f23;
+				--muted: #626a73;
+				--accent: #3b6ef5;
+				--warn: #b26b00;
+				--bad: #c0392b;
+				--ok: #237a4b;
+				--ts: #3b6ef5;
+				--js: #d9a400;
+				--go: #0891b2;
+				--other: #8a94a0;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--bg: #16181b;
+					--panel: #1d2024;
+					--line: #2f343a;
+					--text: #e6e8eb;
+					--muted: #9aa3ad;
+					--accent: #6f97ff;
+					--warn: #e0a030;
+					--bad: #ef6b5a;
+					--ok: #4cbf8b;
+					--ts: #6f97ff;
+					--js: #e0b93c;
+					--go: #35b6d4;
+					--other: #9aa3ad;
+				}
+			}
+			* { box-sizing: border-box; }
+			html, body { height: 100%; margin: 0; }
+			body {
+				background: var(--bg);
+				color: var(--text);
+				font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+				display: flex;
+				flex-direction: column;
+			}
+			header {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+				padding: 10px 16px;
+				border-bottom: 1px solid var(--line);
+				flex-wrap: wrap;
+			}
+			h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: 0.2px; }
+			.chips { display: flex; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+			.chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+			.chip.warn { color: var(--warn); border-color: color-mix(in oklab, var(--warn) 40%, var(--line)); }
+			.spacer { flex: 1; }
+			select, button, input {
+				font: inherit;
+				color: inherit;
+				background: var(--panel);
+				border: 1px solid var(--line);
+				border-radius: 7px;
+				padding: 5px 9px;
+			}
+			button { cursor: pointer; }
+			button:hover { border-color: var(--muted); }
+			button.primary { border-color: var(--accent); color: var(--accent); }
+			nav { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--line); }
+			nav button {
+				border: 0;
+				border-bottom: 2px solid transparent;
+				border-radius: 0;
+				background: transparent;
+				padding: 6px 10px;
+				color: var(--muted);
+			}
+			nav button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+			main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
+			#view { position: relative; min-height: 0; overflow: hidden; }
+			#view svg { display: block; width: 100%; height: 100%; }
+			aside {
+				border-left: 1px solid var(--line);
+				background: var(--panel);
+				overflow: auto;
+				padding: 12px 14px;
+				min-height: 0;
+			}
+			aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 0 0 8px; }
+			.kind {
+				display: inline-block;
+				font-size: 10px;
+				text-transform: uppercase;
+				letter-spacing: 0.4px;
+				color: var(--muted);
+				border: 1px solid var(--line);
+				border-radius: 4px;
+				padding: 0 4px;
+				margin-right: 6px;
+			}
+			.row { padding: 5px 0; border-bottom: 1px solid color-mix(in oklab, var(--line) 60%, transparent); display: flex; gap: 8px; align-items: baseline; }
+			.row .where { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+			.row .what { min-width: 0; overflow-wrap: anywhere; }
+			.muted { color: var(--muted); }
+			table { width: 100%; border-collapse: collapse; }
+			th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid color-mix(in oklab, var(--line) 60%, transparent); vertical-align: top; }
+			th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+			.session { cursor: pointer; }
+			.session:hover { background: color-mix(in oklab, var(--accent) 8%, transparent); }
+			code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+			.legend { position: absolute; left: 10px; bottom: 8px; display: flex; gap: 10px; color: var(--muted); font-size: 11px; }
+			.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+			.empty { padding: 40px; color: var(--muted); }
+			.err { color: var(--bad); padding: 12px 16px; }
+			svg text { font-size: 10px; fill: var(--muted); pointer-events: none; }
+		</style>
+	</head>
+	<body>
+		<header>
+			<h1>Code Impact</h1>
+			<select id="root" title="workspace"></select>
+			<div class="chips" id="chips"></div>
+			<div class="spacer"></div>
+			<button id="refresh" class="primary">Refresh</button>
+		</header>
+		<nav id="tabs">
+			<button data-view="architecture" aria-selected="true">Architecture</button>
+			<button data-view="imports">Imports</button>
+			<button data-view="types">Inheritance</button>
+			<button data-view="sessions">Sessions</button>
+		</nav>
+		<main>
+			<div id="view"></div>
+			<aside id="detail"><p class="muted">Pick a file or a session.</p></aside>
+		</main>
+		<script type="module" src="/code-impact/app.js"></script>
+	</body>
+</html>
