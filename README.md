@@ -105,7 +105,7 @@ each edit, and the answer is about what you just did.
 
 ```bash
 # from GitHub (or any published tarball / registry package)
-dsh plugin --profile desktop add github:yangxy111/dsh-code-impact
+dsh plugin --profile desktop add github:Locael123/dsh-code-impact
 dsh web    # restart: the host half of a plugin is imported once, at boot
 ```
 

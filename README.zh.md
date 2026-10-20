@@ -95,7 +95,7 @@ references that no longer resolve:
 
 ```bash
 # 从 GitHub 装（或任何已发布的 tarball / registry 包）
-dsh plugin --profile desktop add github:yangxy111/dsh-code-impact
+dsh plugin --profile desktop add github:Locael123/dsh-code-impact
 dsh web    # 重启：插件的宿主半只在启动时 import 一次
 ```
 
